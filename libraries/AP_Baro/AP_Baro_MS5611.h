@@ -1,12 +1,9 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+#pragma once
 
-#ifndef __AP_BARO_MS5611_H__
-#define __AP_BARO_MS5611_H__
+#include "AP_Baro_Backend.h"
 
-#include <AP_HAL.h>
-#include "AP_Baro.h"
-
-#define MS5611_I2C_ADDR 0x77
+#include <AP_HAL/AP_HAL.h>
 
 /** Abstract serial bus device driver for I2C/SPI. */
 class AP_SerialBus
@@ -22,7 +19,7 @@ public:
     virtual uint32_t read_24bits(uint8_t reg) = 0;
 
     /** Write to a register with no data. */
-    virtual void write(uint8_t reg) = 0;
+    virtual bool write(uint8_t reg) = 0;
 
     /** Acquire the internal semaphore for this device.
      * take_nonblocking should be used from the timer process,
@@ -38,18 +35,18 @@ public:
 class AP_SerialBus_SPI : public AP_SerialBus
 {
 public:
-    AP_SerialBus_SPI(enum AP_HAL::SPIDevice device, enum AP_HAL::SPIDeviceDriver::bus_speed speed);
+    AP_SerialBus_SPI(enum AP_HAL::SPIDeviceType device, enum AP_HAL::SPIDeviceDriver::bus_speed speed);
     void init();
     uint16_t read_16bits(uint8_t reg);
     uint32_t read_24bits(uint8_t reg);
     uint32_t read_adc(uint8_t reg);
-    void write(uint8_t reg);
+    bool write(uint8_t reg);
     bool sem_take_nonblocking();
     bool sem_take_blocking();
     void sem_give();
 
 private:
-    enum AP_HAL::SPIDevice _device;
+    enum AP_HAL::SPIDeviceType _device;
     enum AP_HAL::SPIDeviceDriver::bus_speed _speed;
     AP_HAL::SPIDeviceDriver *_spi;
     AP_HAL::Semaphore *_spi_sem;
@@ -59,35 +56,36 @@ private:
 class AP_SerialBus_I2C : public AP_SerialBus
 {
 public:
-    AP_SerialBus_I2C(uint8_t addr);
+    AP_SerialBus_I2C(AP_HAL::I2CDriver *i2c, uint8_t addr);
     void init();
     uint16_t read_16bits(uint8_t reg);
     uint32_t read_24bits(uint8_t reg);
-    void write(uint8_t reg);
+    bool write(uint8_t reg);
     bool sem_take_nonblocking();
     bool sem_take_blocking();
     void sem_give();
 
 private:
+    AP_HAL::I2CDriver *_i2c;
     uint8_t _addr;
     AP_HAL::Semaphore *_i2c_sem;
 };
 
-class AP_Baro_MS5611 : public AP_Baro_Backend
+class AP_Baro_MS56XX : public AP_Baro_Backend
 {
 public:
-    AP_Baro_MS5611(AP_Baro &baro, AP_SerialBus *serial, bool use_timer);
     void update();
     void accumulate();
 
-private:
-    AP_SerialBus *_serial;
-    uint8_t _instance;
+protected:
+    AP_Baro_MS56XX(AP_Baro &baro, AP_SerialBus *serial, bool use_timer);
+    void _init();
 
-    void _calculate();
-    bool _check_crc();
-
+    virtual void _calculate() = 0;
+    virtual bool _read_prom(uint16_t prom[8]);
     void _timer();
+
+    AP_SerialBus *_serial;
 
     /* Asynchronous state: */
     volatile bool            _updated;
@@ -96,12 +94,37 @@ private:
     volatile uint32_t        _s_D1, _s_D2;
     uint8_t                  _state;
     uint32_t                 _last_timer;
+    bool                     _timesliced;
 
     bool _use_timer;
 
     // Internal calibration registers
-    uint16_t                 C1,C2,C3,C4,C5,C6;
-    float                    D1,D2;
+    uint16_t                 _c1,_c2,_c3,_c4,_c5,_c6;
+    float                    _D1, _D2;
+    uint8_t _instance;
 };
 
-#endif //  __AP_BARO_MS5611_H__
+class AP_Baro_MS5611 : public AP_Baro_MS56XX
+{
+public:
+    AP_Baro_MS5611(AP_Baro &baro, AP_SerialBus *serial, bool use_timer);
+private:
+    void _calculate();
+};
+
+class AP_Baro_MS5607 : public AP_Baro_MS56XX
+{
+public:
+    AP_Baro_MS5607(AP_Baro &baro, AP_SerialBus *serial, bool use_timer);
+private:
+    void _calculate();
+};
+
+class AP_Baro_MS5637 : public AP_Baro_MS56XX
+{
+public:
+    AP_Baro_MS5637(AP_Baro &baro, AP_SerialBus *serial, bool use_timer);
+private:
+    void _calculate();
+    bool _read_prom(uint16_t prom[8]) override;
+};

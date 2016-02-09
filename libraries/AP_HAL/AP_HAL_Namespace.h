@@ -26,6 +26,7 @@ namespace AP_HAL {
     class RCOutput;
     class Scheduler;
     class Semaphore;
+    class OpticalFlow;
     
     class Util;
 
@@ -46,7 +47,7 @@ namespace AP_HAL {
      * Global names for all of the existing SPI devices on all platforms.
      */
 
-    enum SPIDevice {
+    enum SPIDeviceType {
         SPIDevice_Dataflash         = 0,
         SPIDevice_ADS7844           = 1,
         SPIDevice_MS5611            = 2,
@@ -55,12 +56,15 @@ namespace AP_HAL {
         SPIDevice_ADNS3080_SPI3     = 5,
         SPIDevice_MPU9250           = 6,
         SPIDevice_L3GD20            = 7,
-        SPIDevice_LSM303D           = 8,        
+        SPIDevice_LSM303D           = 8,
         SPIDevice_LSM9DS0_AM        = 9,
         SPIDevice_LSM9DS0_G         = 10,
-        SPIDevice_Ublox             = 11
+        SPIDevice_Ublox             = 11,
+        SPIDevice_RASPIO            = 12
     };
 
+    // Must be implemented by the concrete HALs.
+    const HAL& get_HAL();
 }
 
 #endif // __AP_HAL_NAMESPACE_H__

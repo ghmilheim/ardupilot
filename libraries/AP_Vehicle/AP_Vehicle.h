@@ -19,7 +19,7 @@
   parameters needed by multiple libraries
  */
 
-#include <AP_Param.h>
+#include <AP_Param/AP_Param.h>
 
 class AP_Vehicle {
 
@@ -40,6 +40,7 @@ public:
         AP_Int8  autotune_level;
         AP_Int16 land_pitch_cd;
         AP_Float land_flare_sec;
+        AP_Float land_pre_flare_airspeed;
         AP_Int8  stall_prevention;
     };
 

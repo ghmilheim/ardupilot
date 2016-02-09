@@ -39,10 +39,10 @@ void Copter::init_rc_in()
     channel_yaw->set_type(RC_CHANNEL_TYPE_ANGLE_RAW);
 
     //set auxiliary servo ranges
-    g.rc_5.set_range(0,1000);
-    g.rc_6.set_range(0,1000);
-    g.rc_7.set_range(0,1000);
-    g.rc_8.set_range(0,1000);
+    g.rc_5.set_range_in(0,1000);
+    g.rc_6.set_range_in(0,1000);
+    g.rc_7.set_range_in(0,1000);
+    g.rc_8.set_range_in(0,1000);
 
     // set default dead zones
     default_dead_zones();
@@ -57,7 +57,10 @@ void Copter::init_rc_out()
     motors.set_update_rate(g.rc_speed);
     motors.set_frame_orientation(g.frame_orientation);
     motors.Init();                                              // motor initialisation
+#if FRAME_CONFIG != HELI_FRAME
     motors.set_throttle_range(g.throttle_min, channel_throttle->radio_min, channel_throttle->radio_max);
+    motors.set_hover_throttle(g.throttle_mid);
+#endif
 
     for(uint8_t i = 0; i < 5; i++) {
         delay(20);
@@ -98,7 +101,6 @@ void Copter::read_radio()
     uint32_t tnow_ms = millis();
 
     if (hal.rcin->new_input()) {
-        last_update_ms = tnow_ms;
         ap.new_radio_frame = true;
         RC_Channel::set_pwm_all();
 
@@ -112,6 +114,10 @@ void Copter::read_radio()
 
         // update output on any aux channels, for manual passthru
         RC_Channel_aux::output_ch_all();
+
+        float dt = (tnow_ms - last_update_ms)*1.0e-3f;
+        rc_throttle_control_in_filter.apply(g.rc_3.control_in, dt);
+        last_update_ms = tnow_ms;
     }else{
         uint32_t elapsed = tnow_ms - last_update_ms;
         // turn on throttle failsafe if no update from the RC Radio for 500ms or 2000ms if we are using RC_OVERRIDE

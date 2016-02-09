@@ -11,13 +11,16 @@
 //  should be called at 3.3hz
 void Copter::tuning() {
 
-    // exit immediately if not tuning of when radio failsafe is invoked so tuning values are not set to zero
-    if ((g.radio_tuning <= 0) || failsafe.radio || failsafe.radio_counter != 0) {
+    // exit immediately if not using tuning function, or when radio failsafe is invoked, so tuning values are not set to zero
+    if ((g.radio_tuning <= 0) || failsafe.radio || failsafe.radio_counter != 0 || g.rc_6.radio_in == 0) {
         return;
     }
 
+    // set tuning range and then get new value
+    g.rc_6.set_range_in(g.radio_tuning_low,g.radio_tuning_high);
     float tuning_value = (float)g.rc_6.control_in / 1000.0f;
-    g.rc_6.set_range(g.radio_tuning_low,g.radio_tuning_high);
+    // Tuning Value should never be outside the bounds of the specified low and high value
+    tuning_value = constrain_float(tuning_value, g.radio_tuning_low/1000.0f, g.radio_tuning_high/1000.0f);
 
     Log_Write_Parameter_Tuning(g.radio_tuning, tuning_value, g.rc_6.control_in, g.radio_tuning_low, g.radio_tuning_high);
 
@@ -130,8 +133,8 @@ void Copter::tuning() {
         break;
 
     case TUNING_CIRCLE_RATE:
-        // set circle rate
-        circle_nav.set_rate(g.rc_6.control_in/25-20);   // allow approximately 45 degree turn rate in either direction
+        // set circle rate up to approximately 45 deg/sec in either direction
+        circle_nav.set_rate((float)g.rc_6.control_in/25.0f-20.0f);
         break;
 
     case TUNING_SONAR_GAIN:
@@ -142,18 +145,31 @@ void Copter::tuning() {
 #if 0
         // disabled for now - we need accessor functions
     case TUNING_EKF_VERTICAL_POS:
+        // Tune the EKF that is being used
         // EKF's baro vs accel (higher rely on accels more, baro impact is reduced)
-        ahrs.get_NavEKF()._gpsVertPosNoise = tuning_value;
+        if (!ahrs.get_NavEKF2().enabled()) {
+            ahrs.get_NavEKF()._gpsVertPosNoise = tuning_value;
+        } else {
+            ahrs.get_NavEKF2()._gpsVertPosNoise = tuning_value;
+        }
         break;
 
     case TUNING_EKF_HORIZONTAL_POS:
         // EKF's gps vs accel (higher rely on accels more, gps impact is reduced)
-        ahrs.get_NavEKF()._gpsHorizPosNoise = tuning_value;
+        if (!ahrs.get_NavEKF2().enabled()) {
+            ahrs.get_NavEKF()._gpsHorizPosNoise = tuning_value;
+        } else {
+            ahrs.get_NavEKF2()._gpsHorizPosNoise = tuning_value;
+        }
         break;
 
     case TUNING_EKF_ACCEL_NOISE:
         // EKF's accel noise (lower means trust accels more, gps & baro less)
-        ahrs.get_NavEKF()._accNoise = tuning_value;
+        if (!ahrs.get_NavEKF2().enabled()) {
+            ahrs.get_NavEKF()._accNoise = tuning_value;
+        } else {
+            ahrs.get_NavEKF2()._accNoise = tuning_value;
+        }
         break;
 #endif
 
@@ -186,9 +202,11 @@ void Copter::tuning() {
         g.pid_rate_roll.kD(tuning_value);
         break;
 
+#if FRAME_CONFIG != HELI_FRAME
     case TUNING_RATE_MOT_YAW_HEADROOM:
         motors.set_yaw_headroom(tuning_value*1000);
         break;
+#endif
 
      case TUNING_RATE_YAW_FILT:
          g.pid_rate_yaw.filt_hz(tuning_value);
